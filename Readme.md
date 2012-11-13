@@ -2,7 +2,7 @@
 
 Use OSC protocol in your AIR Application.
 
-OSC message receive, send, and use #Bundle available.
+OSC message **receive**, **send**, and use **#Bundle** available.
 
 #Usage
 
