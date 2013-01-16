@@ -65,7 +65,7 @@ package org.sgmnt.lib.osc{
 			// --- Create Timer. ---
 			
 			// このタイマーが完了したら安定したとみなす.
-			_activateTimer = new Timer(1000,10);
+			_activateTimer = new Timer(10000,10);
 			_activateTimer.addEventListener(TimerEvent.TIMER, _onTimer );
 			_activateTimer.addEventListener(TimerEvent.TIMER_COMPLETE, _onTimerComplete );
 			_activateTimer.start();
@@ -221,7 +221,7 @@ package org.sgmnt.lib.osc{
 			trace( name + " Activating...");
 			
 			_activateTimer.repeatCount = 1;
-			_activateTimer.delay = 30000;
+			_activateTimer.delay = 60000;
 			_activateTimer.reset();
 			_activateTimer.addEventListener( TimerEvent.TIMER_COMPLETE, _onTimerCompleteCompletely );
 			_activateTimer.start();
