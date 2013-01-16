@@ -25,6 +25,7 @@ package
 			
 			stage.addEventListener(MouseEvent.CLICK,function(e){
 				trace(e);
+				trace(OSCSyncManager.getInstance().status);
 				_process.begin();
 			});
 			
