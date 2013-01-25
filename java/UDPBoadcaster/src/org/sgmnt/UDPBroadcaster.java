@@ -54,26 +54,28 @@ public class UDPBroadcaster {
 		sock = new DatagramSocket( fromPort );
 		
         // 受け付けるデータバッファとUDPパケットを作成
-        receiveBuffer = new byte[1024];
+        receiveBuffer = new byte[512];
         packet = new DatagramPacket( receiveBuffer, receiveBuffer.length );
         
         remoteAddr = new InetSocketAddress( broadcastAddr, toPort );
-
+        
 		System.out.println( "Broadcast " + broadcastAddr + " from " + fromPort + " to " + toPort );
 		
         while (true) {
         	
             sock.receive(packet);
             
+            byte[] buf = packet.getData();
+            int len    = packet.getLength();
+            
             /*
             // 受信したデータを標準出力へ出力
             System.out.println(
-            	new String( packet.getData(), 0, packet.getLength() )
+            	new String( buf, 0, len )
             );
-            */
+            //*/
             
-            byte[] buf = packet.getData();
-            sock.send( new DatagramPacket(buf, buf.length, remoteAddr ) );
+            sock.send( new DatagramPacket(buf, len, remoteAddr ) );
             
         }
         
