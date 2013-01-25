@@ -65,7 +65,7 @@ package org.sgmnt.lib.osc{
 			// --- Create Timer. ---
 			
 			// このタイマーが完了したら安定したとみなす.
-			_activateTimer = new Timer(10000,10);
+			_activateTimer = new Timer(1000,10);
 			_activateTimer.addEventListener(TimerEvent.TIMER, _onTimer );
 			_activateTimer.addEventListener(TimerEvent.TIMER_COMPLETE, _onTimerComplete );
 			_activateTimer.start();
@@ -132,7 +132,7 @@ package org.sgmnt.lib.osc{
 				_length++;
 				// --- restart Timer. ---
 				if( _activateTimer.running ){
-					trace( name + " Timer Reset.");
+					//trace( name + " Timer Reset.");
 					_activateTimer.reset();
 					_activateTimer.start();
 				}
@@ -218,10 +218,10 @@ package org.sgmnt.lib.osc{
 			
 			// --- Last Checking. ---
 			
-			trace( name + " Activating...");
+			//trace( name + " Activating...");
 			
 			_activateTimer.repeatCount = 1;
-			_activateTimer.delay = 60000;
+			_activateTimer.delay = 10000;
 			_activateTimer.reset();
 			_activateTimer.addEventListener( TimerEvent.TIMER_COMPLETE, _onTimerCompleteCompletely );
 			_activateTimer.start();
@@ -234,7 +234,7 @@ package org.sgmnt.lib.osc{
 		 */
 		private function _onTimerCompleteCompletely(event:TimerEvent):void{
 			
-			trace( name + " Activating... COMPLETE");
+			//trace( name + " Activating... COMPLETE");
 			
 			dispatchEvent( new Event(Event.CLEAR) );
 			

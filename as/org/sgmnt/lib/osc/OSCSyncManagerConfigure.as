@@ -33,11 +33,11 @@ package org.sgmnt.lib.osc{
 		// ------- MEMBER ----------------------------------------------------------
 		
 		private var _localAddress:String;
-		private var _broadcastAddress:String;
-		private var _syncPort:int;
+		private var _broadcastSocket:OSCBroadcastSocket;
 		private var _hostHash:Array;
 		
 		// ------- PUBLIC ----------------------------------------------------------
+
 		
 		/**
 		 * Constructor.
@@ -45,12 +45,18 @@ package org.sgmnt.lib.osc{
 		 * @param syncPort
 		 * @param broadcastPort
 		 */		
-		public function OSCSyncManagerConfigure( localAddress:* = null, broadcastAddress:* = null, syncPort:int = 57577 ){
+		public function OSCSyncManagerConfigure( broadcastSocket:OSCBroadcastSocket, localAddress:* = null ):void{
+			
+			// --- Setup for Broadcast. ---
+			
+			if( !broadcastSocket.initialized ){
+				throw ArgumentError("OSCBroadcastSocket must be initialized.");
+			}
+			_broadcastSocket = broadcastSocket;
 			
 			// --- Setup Local Address. ---
 			
 			_localAddress     = localAddress;
-			_broadcastAddress = broadcastAddress;
 			
 			var found:Boolean = false;
 			var ifaces:Vector.<NetworkInterface> = NetworkInfo.networkInfo.findInterfaces();
@@ -63,18 +69,11 @@ package org.sgmnt.lib.osc{
 					if( !_localAddress ){
 						_localAddress     = interfaceAddress.address;
 					}
-					if( !_broadcastAddress ){
-						_broadcastAddress = interfaceAddress.broadcast;
-					}
 					found = true;
 					break;
 				}
 				if( found ) break;
 			}
-			
-			// --- Setup for Broadcast. ---
-			
-			_syncPort      = syncPort;
 			
 		}
 		
@@ -83,18 +82,6 @@ package org.sgmnt.lib.osc{
 		 * @return 
 		 */
 		public function get localAddress():String{ return _localAddress; }
-		
-		/**
-		 * 
-		 * @return 
-		 */
-		public function get broadcastAddress():String{ return _broadcastAddress; }
-		
-		/**
-		 * 
-		 * @return 
-		 */
-		public function get syncPort():int{ return _syncPort; }
 		
 		/**
 		 * ホストのIPアドレス情報を追加する.
@@ -121,6 +108,14 @@ package org.sgmnt.lib.osc{
 		 */		
 		public function get hasHostIPSettigs():Boolean{
 			return _hostHash != null;
+		}
+		
+		/**
+		 * OSCBroadcastSocket を取得します.
+		 * @return 
+		 */
+		public function get broadcastSocket():OSCBroadcastSocket{
+			return _broadcastSocket;
 		}
 		
 		// ------- PUBLIC ----------------------------------------------------------
