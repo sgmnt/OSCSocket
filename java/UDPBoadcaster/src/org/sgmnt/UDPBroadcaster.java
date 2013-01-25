@@ -54,7 +54,7 @@ public class UDPBroadcaster {
 		sock = new DatagramSocket( fromPort );
 		
         // 受け付けるデータバッファとUDPパケットを作成
-        receiveBuffer = new byte[512];
+        receiveBuffer = new byte[1024];
         packet = new DatagramPacket( receiveBuffer, receiveBuffer.length );
         
         remoteAddr = new InetSocketAddress( broadcastAddr, toPort );
