@@ -33,17 +33,28 @@ package org.sgmnt.lib.osc{
 	 * 同期処理時に OSCSyncProcess が自らの挙動を決定する上での情報を提供するためのクラスです.
 	 * 同期対象となる各々の PC の IP をリスト化し, Timer クラスを用いて生存監視を行います.
 	 * 
-	 * TODO Activate 後に追加が会った場合は、再度アクティベートフローに入る.
-	 * その際現在実行中の同期処理が会った場合はその同期処理完了後にフローに入る.
+	 * TODO Activate 後に追加があった場合は、再度アクティベートフローに入る.
+	 * その際現在実行中の同期処理があった場合はその同期処理完了後にフローに入る.
+	 * 
+	 * やる事
+	 * 
+	 * - STABLE 状態と PENDING 状態、など状態をグループ側で制御する
+	 * - UNSTABLE = 実行不可能 ではなく STABLE 時に実行していたものは引き続き完了まで面倒をみる.
+	 * - activate の完了を保証する（今はちょっとずれる事がありそう OSC でしっかり監視）
+	 *   この完了タイミングで _clients を全て stable にするのが良さそう.
+	 *   _clients の stable = 現在実行可能な IP たちという設計.
 	 * 
 	 * @author sgmnt.org
 	 */
-	internal class OSCSyncManagerGroup extends EventDispatcher{
+	internal class OSCSyncGroup extends EventDispatcher{
 		
 		// ------- MEMBER -----------------------------------------------
 		
 		/** OSCSyncManager への参照. */
 		private var _mngr:OSCSyncManager;
+		
+		/** このグループがアクティベートされているか. */
+		private var _activated:Boolean;
 		
 		/** グループ名 */
 		private var _name:String;
@@ -51,17 +62,14 @@ package org.sgmnt.lib.osc{
 		/** 生存時間. */
 		private var _life:Number;
 		
-		/** 自身のグループに所属しているクライアント数. */
-		private var _length:uint;
-		
 		/** インスタンスが作られた時間. */
 		private var _createTime:Number;
 		
-		/** ホストとして把握しているクライアントのIP */
+		/** Hostとして把握しているクライアントのIP */
 		private var _hostIP:String;
 		
 		/** 自身のグループに所属しているクライアントのリスト. */
-		private var _clients:Array;
+		private var _clients:Vector.<OSCSyncGroupClient>;
 		
 		/** 自身がアクティベートされるまでにIPを監視するためのタイマー */
 		private var _activateTimer:Timer;
@@ -71,11 +79,11 @@ package org.sgmnt.lib.osc{
 		/** このグループの自身の所属期限を定義するタイマー. */
 		private var _expireTimer:Timer;
 		
-		/** このグループがアクティベートされているか. */
-		internal var _activated:Boolean;
+		/** 新規プロセスの開始を受け付けるかどうか. */
+		private var _newProcessRunnable:Boolean;
 		
-		/** このグループの同期プロセスが実行中であるか. */
-		internal var _processRunning:Boolean;
+		/** このグループで実行中の同期プロセス数. */
+		internal var _numRunningProcesses:int;
 		
 		// ------- PUBLIC -----------------------------------------------
 		
@@ -87,45 +95,67 @@ package org.sgmnt.lib.osc{
 		 * @param activateTimerCount アクティベート用タイマーのカウント.
 		 * 
 		 */
-		public function OSCSyncManagerGroup( manager:OSCSyncManager, name:String, life:Number, activateTimerDelay:Number = 1000, activateTimerCount:int = 10 ){
+		public function OSCSyncGroup( manager:OSCSyncManager, name:String, life:Number, activateTimerDelay:Number = 1000, activateTimerCount:int = 10 ){
 			
+			// --- Init properties. ---
 			_mngr = manager;
 			_name = name;
 			_life = life;
+			
 			_activateTimerDelay = activateTimerDelay;
 			_activateTimerCount = activateTimerCount;
 			
-			_createTime     = new Date().time;
+			_createTime = new Date().time;
 			
-			_hostIP         = null;
-			_clients        = new Array();
-			_length         = 0;
+			_hostIP  = null;
+			_clients = new Vector.<OSCSyncGroupClient>();
 			
-			_activated      = false;
-			_processRunning = false;
+			_activated = false;
+			_newProcessRunnable  = false;
+			_numRunningProcesses = 0;
 			
-			// --- Setup Manager.
-			_mngr.socket.addEventListener( "/group/" + _name + "/create", _onCreate );
-			_mngr.socket.addEventListener( "/group/" + _name + "/pending", _onPending );
-			_mngr.socket.addEventListener( "/group/" + _name + "/lostip", _onLostIP );
-			
-			// --- Setup Timer. ---
+			// --- Setup Timers. ---
 			_activateTimer = new Timer( _activateTimerDelay, _activateTimerCount );
 			_expireTimer   = new Timer( 1000 );
 			_expireTimer.addEventListener( TimerEvent.TIMER, _onExpireTimer );
 			
-			// --- Start Activate.
+			// --- Broadcast Group Create Message. ---
+			_mngr.broadcast( new OSCMessage("/group/"+_name+"/create") );
 			
+			// --- Add EventLisnters to OSCSyncManager. ---
+			_mngr.socket.addEventListener( "/group/" + _name + "/create" , _onCreateMessageReceived );
+			_mngr.socket.addEventListener( "/group/" + _name + "/join"   , _onJoinMessageReceived );
+			_mngr.socket.addEventListener( "/group/" + _name + "/pending", _onPendingMessageReceived );
+			_mngr.socket.addEventListener( "/group/" + _name + "/lostip" , _onLostIPMessageReceived );
+			
+			// --- Start Activate.
 			_activate();
 			
 		}
 		
 		/**
-		 * このグループがアクティベートされているか.
+		 * 新規の同期プロセス開始を受け付けているか.
 		 * @return 
-		 */		
-		public function get activated():Boolean{
-			return _activated;
+		 */
+		public function get canNewProcessBegin():Boolean{
+			return _newProcessRunnable;
+		}
+		
+		/**
+		 * このグループ間で実行されている同期プロセスがあるかどうか.
+		 * @return
+		 */
+		public function get hasRunningProcesses():Boolean{
+			return 0 < _numRunningProcesses;
+		}
+		
+		/**
+		 * HostとなるIPアドレスを設定します.
+		 * 設定処理は OSCSyncManager から行われます.
+		 * @return
+		 */
+		public function get hostIP():String{
+			return _hostIP;
 		}
 		
 		/**
@@ -141,41 +171,57 @@ package org.sgmnt.lib.osc{
 		 * @return
 		 */
 		public function get numClients():int{
-			return _length;
+			return _clients.length;
 		}
 		
 		/**
-		 * ホストとなるIPアドレスを設定します.
-		 * 設定処理は OSCSyncManager から行われます.
-		 * @return
+		 * このグループが現在安定しており同期処理が実行可能な状態であるか.
+		 * @return 
 		 */
-		public function get hostIP():String{ return _hostIP; }
+		public function get stable():Boolean{
+			return _activated == true && _newProcessRunnable == true;
+		}
 		
 		/**
 		 * グループに所属しているクライアントのIPの配列を生成し取得します.
+		 * 仮登録 (unstable client) の IP は除外されます.
 		 * @return
 		 */
 		public function createClientIPArray():Array{
 			var arr:Array = [];
-			for( var ip:String in _clients ){ arr.push(ip); }
+			for( var i:int = 0; i < _clients.length; i++ ){
+				if( _clients[i].stable == true ){
+					arr.push( _clients[i].ip );
+				}
+			}
 			return arr;
 		}
 		
+		/**
+		 * このグループインスタンスの破棄を申し出ます.
+		 * 破棄の処理は OSC メッセージ通知後に行われます.
+		 */
 		public function destroy():void{
 			_mngr.broadcast( new OSCMessage("/group/"+_name+"/destroy") );
 		}
 		
 		/**
-		 * 保持しているクライアントの一覧情報を取得します.
-		 * @return 
+		 * 保持しているクライアントの IP アドレスの一覧を出力します.
+		 * Host として認識している IP には * が追加されます.
+		 * 仮登録している IP には ! が追加されます.
+		 * @return
 		 */
 		override public function toString():String{
-			var str:String = name + ":\n";
-			for( var ip:String in _clients ){
-				if( _hostIP == ip ){
-					str += "  *" + ip　+"\n";
+			var i:int, c:OSCSyncGroupClient,
+				str:String = name + ":\n";
+			for( i = 0; i < _clients.length; i++ ){
+				c = _clients[i];
+				if( _hostIP == c.ip ){
+					str += " *" + c.ip　+"\n";
+				}else if( c.stable == false ){
+					str += " !" + c.ip + "\n";
 				}else{
-					str += "  " + ip　+"\n";
+					str += "  " + c.ip　+"\n";
 				}
 			}
 			return str;
@@ -190,7 +236,7 @@ package org.sgmnt.lib.osc{
 		 * @param activateTimerDelay
 		 * @param repeatCount
 		 */
-		internal function _activate( activateTimerDelay:Number = -1, repeatCount:int = -1 ):void{
+		private function _activate( activateTimerDelay:Number = -1, repeatCount:int = -1 ):void{
 			if( _activated == true ){
 				return;
 			}
@@ -200,7 +246,7 @@ package org.sgmnt.lib.osc{
 			_activateTimer.addEventListener(TimerEvent.TIMER, _onActivateTimer );
 			_activateTimer.addEventListener(TimerEvent.TIMER_COMPLETE, _onActivateTimerComplete );
 			_activateTimer.start();
-			_broadcastCreateGroupMessage();
+			_broadcastJoinMessage();
 		}
 		
 		/**
@@ -213,7 +259,7 @@ package org.sgmnt.lib.osc{
 		 */
 		private function _onActivateTimer(event:TimerEvent):void{
 			trace( name + " Checking IP List... " + _activateTimer.currentCount);
-			_broadcastCreateGroupMessage();
+			_broadcastJoinMessage();
 		}
 		
 		/**
@@ -237,7 +283,7 @@ package org.sgmnt.lib.osc{
 			_activated = true;
 			
 			// --- Dispatch Activate Event.
-			dispatchEvent( new OSCSyncManagerGroupEvent( OSCSyncManagerGroupEvent.ACTIVATED ) );
+			dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.STABLED ) );
 			
 		}
 		
@@ -247,7 +293,7 @@ package org.sgmnt.lib.osc{
 		 */		
 		private function _onExpireTimer(event:TimerEvent):void{
 			trace("_onExpireTimer");
-			_broadcastCreateGroupMessage();
+			_broadcastJoinMessage();
 		}
 		
 		/**
@@ -255,12 +301,20 @@ package org.sgmnt.lib.osc{
 		 * グループ作成のメッセージをブロードキャストします.
 		 * @param name
 		 */
-		private function _broadcastCreateGroupMessage():void{
-			trace("_broadcastCreateGroupMessage");
+		private function _broadcastJoinMessage():void{
+			trace("_broadcastJoinMessage");
 			var msg:OSCMessage = new OSCMessage();
-			msg.address = "/group/"+_name+"/create";
+			msg.address = "/group/"+_name+"/join";
 			msg.addArgument("f",_createTime);
 			_mngr.broadcast( msg );
+		}
+		
+		/**
+		 * OSCSyncGroup が生成された事を通知するメッセージクラス.
+		 * @param event
+		 */
+		private function _onCreateMessageReceived(event:OSCSocketEvent):void{
+			
 		}
 		
 		/**
@@ -275,41 +329,55 @@ package org.sgmnt.lib.osc{
 		 * 
 		 * @param event
 		 */
-		private function _onCreate(event:OSCSocketEvent):void{
+		private function _onJoinMessageReceived(event:OSCSocketEvent):void{
 			
-			trace("_onCreate");
+			trace("_onJoinMessageReceived");
 			
 			var ip:String   = event.srcAddress;
 			var time:Number = event.args[0];
 			
 			// --- Add to IP List.
 			
-			var ipTimer:Timer;
-			if( !_clients[ip] ){
+			var i:int, len:int = _clients.length,
+				client:OSCSyncGroupClient, ipTimer:Timer;
+			
+			for( i = 0; i < len; i++ ){
+				if( _clients[i].ip == ip ){
+					client = _clients[i];
+					break;
+				}
+			}
+			
+			if( !client ){
 				
 				// --- 自身が保持していないIP場合は追加処理を行う.
 				
-				if( _processRunning == true ){
+				if( hasRunningProcesses == true ){
 					// --- 既にプロセスが実行中であった場合,IPの追加を保留する.
 					_mngr.broadcast( new OSCMessage("/group/"+_name+"/pending") );
 					return;
 				}
 				
-				var client:Client = new Client( time );
+				client = new OSCSyncGroupClient( ip, time );
 				client.timer.addEventListener( TimerEvent.TIMER_COMPLETE, _onClientTimerComplete );
-				_clients[ip] = client;
-				_length++;
+				_clients.push( client );
 				
 				// --- restart Timer. ---
 				_activated = false;
 				_activate();
 				
 				// グループに登録されたIPが追加された際の処理.
-				dispatchEvent( new OSCSyncManagerGroupEvent( OSCSyncManagerGroupEvent.ADDED ) );
+				dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.ADDED ) );
+				
+			}else{
+				
+				// --- 保持していた場合 _createTime を更新する. ---
+				
+				client._createTime = time;
 				
 			}
 			
-			ipTimer = _clients[ip].timer;
+			ipTimer = client.timer;
 			ipTimer.reset();
 			ipTimer.start();
 			
@@ -323,16 +391,15 @@ package org.sgmnt.lib.osc{
 		
 		/**
 		 * グループへの追加保留が通達された際の処理.
-		 * もし _processRunning が false の場合は,自身が弾かれた可能性が高いので
+		 * もし hasRunningProcesses が false の場合は,自身が弾かれた可能性が高いので
 		 * 再度 activate 処理を行う.
 		 * @param event
 		 */
-		private function _onPending(event:OSCSocketEvent):void{
-			trace("_onPending");
-			if( _processRunning == false ){
+		private function _onPendingMessageReceived(event:OSCSocketEvent):void{
+			trace("_onPendingMessageReceived");
+			if( hasRunningProcesses == false ){
 				_activated = false;
 				_activate();
-				dispatchEvent( new OSCSyncManagerGroupEvent( OSCSyncManagerGroupEvent.ADD_PENDING ) );				
 			}
 		}
 		
@@ -341,22 +408,28 @@ package org.sgmnt.lib.osc{
 		 * @param event
 		 */
 		private function _onClientTimerComplete(event:TimerEvent):void{
+			
 			trace("_onClientTimerComplete");
+			
 			var timer:Timer = event.target as Timer;
-			var ip:String = null;
-			// 期限切れとなった IP を調べ通知する.
-			for( var key:String in _clients ){
-				if( _clients[key].timer == timer ){
-					ip = key;
+			var i:int, len:int = _clients.length, ip:String = null;
+			
+			// --- 期限切れとなった IP を調べ通知する. ---
+			for( i = 0; i < len; i++ ){
+				if( _clients[i].timer == timer ){
+					ip = _clients[i].ip;
 					break;
 				}
 			}
+			
+			// --- IPが存在した場合削除する. ---
 			if( ip != null ){
 				var msg:OSCMessage = new OSCMessage();
 				msg.address = "/group/"+_name+"/lostip";
 				msg.addArgument( "s", ip );
 				_mngr.broadcast( msg );
 			}
+			
 		}
 		
 		/**
@@ -364,33 +437,22 @@ package org.sgmnt.lib.osc{
 		 * グループからIPを削除する.
 		 * @param event
 		 */
-		private function _onLostIP(event:OSCSocketEvent):void{
+		private function _onLostIPMessageReceived(event:OSCSocketEvent):void{
 			
 			var ip:String = event.args[0];
-			var client:Client = _clients[ip];
+			var i:int, len:int = _clients.length;
 			
-			if( client ){
-				
-				// IP が存在する場合リストから削除する.
-				
-				// --- Clear Timer.
-				client.timer.removeEventListener( TimerEvent.TIMER_COMPLETE, _onClientTimerComplete );
-				client = null;
-				
-				// --- Remove from _clients.
-				
-				_clients[ip] = null;
-				delete _clients[ip];
-				_length--;
-				
-				// --- 
-				
-				_decideHostIP();
-				
-				// ---
-				
-				dispatchEvent( new OSCSyncManagerGroupEvent( OSCSyncManagerGroupEvent.REMOVED ) );
-				
+			for( i = 0; i < len; i++ ){
+				if( _clients[i].ip == ip ){
+					// --- Delete from _clients if ip exists. ---
+					_clients[i].timer.removeEventListener( TimerEvent.TIMER_COMPLETE, _onClientTimerComplete );
+					_clients.splice(i,1);
+					// --- 
+					_decideHostIP();
+					// ---
+					dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.REMOVED ) );
+					break;
+				}
 			}
 			
 		}
@@ -398,60 +460,31 @@ package org.sgmnt.lib.osc{
 		/**
 		 * Host となる IP を決定します.
 		 * IP List に変化が会った際に実行されます.
+		 * Host は常に IP の Host Address の数値が最も小さいものになります.
 		 */
 		private function _decideHostIP():void{
-			var newHostIP:String;
-			var lastIP:int;
-			var minLastIP:int = 255;
-			for( var ip:String in _clients ){
+			
+			var ip:String, newHostIP:String, lastIP:int, minLastIP:int = 255;
+			var i:int, len:int = _clients.length;
+			
+			for( i = 0; i < len; i++ ){
+				ip = _clients[i].ip;
 				lastIP = int( ip.substring( ip.lastIndexOf(".")+1, ip.length ) );
 				if( lastIP < minLastIP ){
 					newHostIP = ip;
 					minLastIP = lastIP;
 				}
 			}
+			
 			if( newHostIP != _hostIP ){
 				_hostIP = newHostIP;
-				dispatchEvent( new OSCSyncManagerGroupEvent( OSCSyncManagerGroupEvent.HOST_CHANGED ) );
+				dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.HOST_CHANGED ) );
 			}
+			
 			trace( name + " Host IP : " + _hostIP );
+			
 		}
 		
 	}
-	
-}
-
-// ===
-
-import flash.utils.Timer;
-
-/**
- * グループ内でクライアント一覧を管理する際に扱う１クライアント分のデータを扱うためのクラス.
- * @author sgmnt.org
- */
-class Client{
-	
-	// ------ MEMBER -----------------------------------------
-	
-	private var _timer:Timer;
-	private var _createTime:Number;
-	
-	// ------ PUBLIC -----------------------------------------
-	
-	/**
-	 * Constructor.
-	 * @param time グループの生成時刻.
-	 */	
-	public function Client( time:Number ):void{
-		// その IP をキーに、100秒を寿命としたタイマーを生成する.
-		_timer      = new Timer( 100000, 1 );
-		_createTime = time;
-	}
-	
-	/** 生存時間を司るタイマー. */
-	public function get timer():Timer{ return _timer; }
-	
-	/** グループの生成時刻. */
-	public function get createTime():Number{ return _createTime; }
 	
 }

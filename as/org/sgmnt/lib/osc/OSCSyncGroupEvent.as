@@ -27,39 +27,40 @@ package org.sgmnt.lib.osc{
 	import flash.events.Event;
 	
 	/**
-	 * OSCSyncManagerGroup で使われるイベントクラスです。
+	 * OSCSyncGroup で使われるイベントクラスです。
 	 * @author    sgmnt.org
 	 * @version   0.1.1
 	 */
-	public class OSCSyncManagerGroupEvent extends Event{
+	public class OSCSyncGroupEvent extends Event{
 		
 		// ------- MEMBER ---------------------------------------------
 		
+		/** Group の同期対象が確定し処理実行可能と判断された際に通知される. */
+		public static const STABLED:String    = "_OscSyncGroupStabled";
+		/** Group のメンバーが変化したりホストが失われたりした際に通知される. */
+		public static const UNSTABLED:String  = "_OscSyncGroupUnstabled";
+		
 		/** Group に IP が追加された際に通知される. */
-		public static const ADDED:String        = "_OscSyncManagerGroupAdded";
+		public static const ADDED:String        = "_OscSyncGroupAdded";
 		/** Group から IP が削除された際に通知される. */
-		public static const REMOVED:String      = "_OscSyncManagerGroupRemoved";
-		/** Group への IP 追加が見送られた際に通知される. */
-		public static const ADD_PENDING:String      = "_OscSyncManagerGroupPending";
-		/** Group のアクティベーション完了時に通知される. */
-		public static const ACTIVATED:String    = "_OscSyncManagerGroupActivated";
-		/** Group のホストが失われた際等にアクティベーションが解除された際に通知される. */
-		public static const DEACTIVATED:String  = "_OscSyncManagerGroupDeactivated";
+		public static const REMOVED:String      = "_OscSyncGroupRemoved";
+		
+		/** Group が新しいプロセス開始を許可したタイミングで通知される. */
+		public static const NEW_PROCESS_BEGIN_ENABLED:String = "_OscSyncGroupNewProcessBeginEnabled";
+		
 		/** Group に登録されている IP のリストでホスト IP の変更があった場合の処理. */
-		public static const HOST_CHANGED:String = "_OscSyncManagerGroupHostChanged";
-		/** Group に登録されている IP のリストに変更があった場合の処理. */
-		public static const EXPIRED:String      = "_OscSyncManagerGroupExpired";
+		public static const HOST_CHANGED:String = "_OscSyncGroupHostChanged";
 		
 		internal var _ip:String;
 		
 		// ------- PUBLIC ---------------------------------------------
 		
-		public function OSCSyncManagerGroupEvent(type:String, bubbles:Boolean=false, cancelable:Boolean=false){
+		public function OSCSyncGroupEvent(type:String, bubbles:Boolean=false, cancelable:Boolean=false){
 			super(type, bubbles, cancelable);
 		}
 		
 		public override function clone():Event {
-			return new OSCSyncManagerGroupEvent( type, bubbles, cancelable );
+			return new OSCSyncGroupEvent( type, bubbles, cancelable );
 		}
 		
 		public override function toString():String { 

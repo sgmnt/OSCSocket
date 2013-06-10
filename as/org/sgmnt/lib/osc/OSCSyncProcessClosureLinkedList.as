@@ -4,14 +4,14 @@ package org.sgmnt.lib.osc{
 	 * OSCSyncProcess で用いるプロセス同士のつながりを定義する Closure のラッパクラス.
 	 * @author sgmnt.org
 	 */
-	internal class ClosureLinkedList{
+	internal class OSCSyncProcessClosureLinkedList{
 		
 		// ------- MEMBER ---------------------------------------------
 		
 		private var _index:int;
 		private var _closure:Function;
-		private var _next:ClosureLinkedList;
-		private var _prev:ClosureLinkedList;
+		private var _next:OSCSyncProcessClosureLinkedList;
+		private var _prev:OSCSyncProcessClosureLinkedList;
 		
 		// ------- PUBLIC ---------------------------------------------
 		
@@ -20,7 +20,7 @@ package org.sgmnt.lib.osc{
 		 * @param index
 		 * @param closure
 		 */	
-		public function ClosureLinkedList( index:int, closure:Function ){
+		public function OSCSyncProcessClosureLinkedList( index:int, closure:Function ){
 			_index   = index;
 			_closure = closure;
 		}
@@ -32,14 +32,14 @@ package org.sgmnt.lib.osc{
 		public function get closure():Function{ return _closure; }
 		
 		/** 次に実行すべき ClosureLinkedList への参照. */
-		public function get next():ClosureLinkedList{ return _next; }
-		public function set next(value:ClosureLinkedList):void{
+		public function get next():OSCSyncProcessClosureLinkedList{ return _next; }
+		public function set next(value:OSCSyncProcessClosureLinkedList):void{
 			_next = value;
 		}
 		
 		/** 前に実行すべき ClosureLinkedList への参照. */
-		public function get prev():ClosureLinkedList{ return _prev; }
-		public function set prev(value:ClosureLinkedList):void{
+		public function get prev():OSCSyncProcessClosureLinkedList{ return _prev; }
+		public function set prev(value:OSCSyncProcessClosureLinkedList):void{
 			_prev = value;
 		}
 		
