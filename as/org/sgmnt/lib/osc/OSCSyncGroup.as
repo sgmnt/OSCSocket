@@ -410,6 +410,10 @@ package org.sgmnt.lib.osc{
 			_removeClientByIP(ip);
 		}
 		
+		/**
+		 * クライアントリストから引数で指定した IP を持つ要素を削除します.
+		 * @param ip
+		 */		
 		private function _removeClientByIP( ip:String ):void{
 			var i:int, len:int = _clients.length;
 			for( i = 0; i < len; i++ ){
