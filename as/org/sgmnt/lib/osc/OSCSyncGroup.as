@@ -365,19 +365,7 @@ package org.sgmnt.lib.osc{
 		 */
 		private function _onCreateMessageReceived(event:OSCSocketEvent):void{
 			var ip:String = event.srcAddress;
-			var i:int, len:int = _clients.length;
-			for( i = 0; i < len; i++ ){
-				if( _clients[i].ip == ip ){
-					// --- Delete from _clients if ip exists. ---
-					_clients[i].timer.removeEventListener( TimerEvent.TIMER_COMPLETE, _onClientTimerComplete );
-					_clients.splice(i,1);
-					// --- 
-					_decideHostIP();
-					// ---
-					dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.REMOVED ) );
-					break;
-				}
-			}
+			_removeClientByIP(ip);
 		}
 		
 		/**
@@ -415,10 +403,12 @@ package org.sgmnt.lib.osc{
 		 * @param event
 		 */
 		private function _onLostIPMessageReceived(event:OSCSocketEvent):void{
-			
 			var ip:String = event.args[0];
+			_removeClientByIP(ip);
+		}
+		
+		private function _removeClientByIP( ip:String ):void{
 			var i:int, len:int = _clients.length;
-			
 			for( i = 0; i < len; i++ ){
 				if( _clients[i].ip == ip ){
 					// --- Delete from _clients if ip exists. ---
@@ -426,12 +416,13 @@ package org.sgmnt.lib.osc{
 					_clients.splice(i,1);
 					// --- 
 					_decideHostIP();
+					trace( "[" + name + "] IP removed from List.");
+					trace( "--------------------\n" + toString() + "\n--------------------" );
 					// ---
 					dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.REMOVED ) );
 					break;
 				}
 			}
-			
 		}
 		
 		// ====================================================================
