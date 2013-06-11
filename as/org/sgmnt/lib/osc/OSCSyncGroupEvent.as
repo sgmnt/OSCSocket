@@ -45,9 +45,6 @@ package org.sgmnt.lib.osc{
 		/** Group から IP が削除された際に通知される. */
 		public static const REMOVED:String      = "_OscSyncGroupRemoved";
 		
-		/** Group が新しいプロセス開始を許可したタイミングで通知される. */
-		public static const NEW_PROCESS_BEGIN_ENABLED:String = "_OscSyncGroupNewProcessBeginEnabled";
-		
 		/** Group に登録されている IP のリストでホスト IP の変更があった場合の処理. */
 		public static const HOST_CHANGED:String = "_OscSyncGroupHostChanged";
 		

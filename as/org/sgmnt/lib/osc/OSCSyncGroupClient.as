@@ -39,19 +39,19 @@ package org.sgmnt.lib.osc{
 		private var _timer:Timer;
 		
 		internal var _stable:Boolean;
-		internal var _createTime:Number;
+		internal var _createdTime:Number;
 		
 		// ------- PUBLIC ---------------------------------------------
 		
 		/**
 		 * @param ip
-		 * @param createTime
+		 * @param createdTime
 		 */
-		public function OSCSyncGroupClient( ip:String, createTime:Number ):void{
-			_ip         = ip;
-			_timer      = new Timer( 100000, 1 );
-			_stable     = false;
-			_createTime = createTime;
+		public function OSCSyncGroupClient( ip:String, createdTime:Number ):void{
+			_ip          = ip;
+			_timer       = new Timer( 100000, 1 );
+			_stable      = false;
+			_createdTime = createdTime;
 		}
 		
 		/** クライアントの IP アドレス. */
@@ -60,21 +60,26 @@ package org.sgmnt.lib.osc{
 		}
 		
 		/**
-		 * このクライアントが安定しているか.
+		 * このクライアントが同期処理対象として決定されているか.
+		 * OSCSyncGroup がこのクライアントを同期対象に含めるかはこの値をもって決定される.
 		 * @return 
 		 */
 		public function get stable():Boolean{
 			return _stable;
 		}
 		
-		/** 生存時間を司るタイマー. */
+		/**
+		 * 生存時間を司るタイマー.
+		 * このタイマーが TIMER_COMPLETE した場合はクライアント保持期限が過ぎた事となる.
+		 * 延長する場合にはこのタイマーを reset() start() してください.
+		 */
 		public function get timer():Timer{
 			return _timer;
 		}
 		
 		/** グループの生成時刻. */
-		public function get createTime():Number{
-			return _createTime;
+		public function get createdTime():Number{
+			return _createdTime;
 		}
 		
 		// ------- PROTECTED ------------------------------------------
