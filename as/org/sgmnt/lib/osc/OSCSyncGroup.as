@@ -443,6 +443,9 @@ package org.sgmnt.lib.osc{
 		 * @param repeatCount
 		 */
 		private function _activate( activateTimerDelay:Number = -1, repeatCount:int = -1 ):void{
+			if( _activated == true ){
+				dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.UNSTABLED ) );
+			}
 			_activated = false;
 			_activateTimer.delay       = ( activateTimerDelay < 0 ) ? _activateTimerDelay: activateTimerDelay;
 			_activateTimer.repeatCount = ( repeatCount < 0 ) ? _activateTimerCount: repeatCount;
