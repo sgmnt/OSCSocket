@@ -329,6 +329,9 @@ package org.sgmnt.lib.osc{
 				client.timer.addEventListener( TimerEvent.TIMER_COMPLETE, _onClientTimerComplete );
 				_clients.push( client );
 				
+				trace( "[" + name + "] IP added to client list.");
+				trace( "--------------------\n" + toString() + "\n--------------------" );
+				
 				_activate();
 				
 			}else{
@@ -416,7 +419,7 @@ package org.sgmnt.lib.osc{
 					_clients.splice(i,1);
 					// --- 
 					_decideHostIP();
-					trace( "[" + name + "] IP removed from List.");
+					trace( "[" + name + "] IP removed from client list.");
 					trace( "--------------------\n" + toString() + "\n--------------------" );
 					// ---
 					dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.REMOVED ) );
