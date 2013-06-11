@@ -200,7 +200,9 @@ package org.sgmnt.lib.osc{
 		 * 破棄の処理は OSC メッセージ通知後に行われます.
 		 */
 		public function destroy():void{
-			_mngr.broadcast( new OSCMessage("/group/"+_name+"/destroy") );
+			var msg:OSCMessage = new OSCMessage();
+			msg.address = "/group/"+_name+"/destroy";
+			_mngr.broadcast(msg);
 		}
 		
 		/**
@@ -256,7 +258,7 @@ package org.sgmnt.lib.osc{
 			var msg:OSCMessage = new OSCMessage();
 			msg.address = "/group/"+_name+"/join";
 			msg.addArgument("f",_createdTime);
-			_mngr.broadcast( msg );
+			_mngr.broadcast(msg);
 		}
 		
 		/**
@@ -315,7 +317,9 @@ package org.sgmnt.lib.osc{
 				// 処理中のプロセスがある場合は一旦待ってもらう.
 				if( hasRunningProcesses == true ){
 					if( _mngr.isHost( _name ) ){
-						_mngr.broadcast(new OSCMessage("/group/"+_name+"/pend"));
+						var msg:OSCMessage = new OSCMessage();
+						msg.address = "/group/"+_name+"/pend";
+						_mngr.broadcast(msg);
 					}
 					return;
 				}
@@ -380,7 +384,7 @@ package org.sgmnt.lib.osc{
 				var msg:OSCMessage = new OSCMessage();
 				msg.address = "/group/"+_name+"/lostip";
 				msg.addArgument( "s", ip );
-				_mngr.broadcast( msg );
+				_mngr.broadcast(msg);
 			}
 			
 		}
