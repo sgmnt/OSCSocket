@@ -24,7 +24,6 @@
  */
 package org.sgmnt.lib.osc{
 	
-	import flash.events.Event;
 	import flash.events.EventDispatcher;
 	import flash.events.TimerEvent;
 	import flash.utils.Timer;
@@ -42,7 +41,7 @@ package org.sgmnt.lib.osc{
 	 * - UNSTABLE = 実行不可能 ではなく STABLE 時に実行していたものは引き続き完了まで面倒をみる.
 	 * - activate の完了を保証する（今はちょっとずれる事がありそう OSC でしっかり監視）
 	 *   この完了タイミングで _clients を全て stable にするのが良さそう.
-	 *   _clients の stable = 現在実行可能な IP たちという設計.
+	 *   _clients の stable = 現在実行可能な IP という設計.
 	 * 
 	 * @author sgmnt.org
 	 */
@@ -111,13 +110,16 @@ package org.sgmnt.lib.osc{
 			_newProcessRunnable  = false;
 			
 			// --- Broadcast Group Create Message. ---
-			//_mngr.broadcast( new OSCMessage("/group/"+_name+"/create") );
+			var msg:OSCMessage = new OSCMessage();
+			msg.address = "/group/"+_name+"/create";
+			_mngr.broadcast( msg );
 			
 			// --- Add EventLisnters to OSCSyncManager. ---
-			//_mngr.socket.addEventListener( "/group/" + _name + "/create" , _onCreateMessageReceived );
+			_mngr.socket.addEventListener( "/group/" + _name + "/create", _onCreateMessageReceived );
 			_mngr.socket.addEventListener( "/group/" + _name + "/join"  , _onJoinMessageReceived );
 			_mngr.socket.addEventListener( "/group/" + _name + "/pend"  , _onPendMessageReceived );
 			_mngr.socket.addEventListener( "/group/" + _name + "/lostip", _onLostIPMessageReceived );
+			_mngr.socket.addEventListener( "/group/" + _name + "/stable", _onStableMessageReceived );
 			
 			// --- Setup Timers. ---
 			_activateTimer = new Timer( _activateTimerDelay, _activateTimerCount );
@@ -125,9 +127,6 @@ package org.sgmnt.lib.osc{
 			_updateTimer = new Timer( 3000 );
 			_updateTimer.addEventListener( TimerEvent.TIMER, _onUpdateTimer );
 			_updateTimer.start();
-			
-			// TODO 基本的には update Timer が通知しっぱなし
-			// 追加処理は随時受け付けるが stable にするのは安定稼働後.
 			
 		}
 		
@@ -359,6 +358,27 @@ package org.sgmnt.lib.osc{
 		// ================================
 		// === Remove flow.
 		
+		/**
+		 * グループ生成の通知が来た際の処理.
+		 * 再起動した可能性があるため対象となる IP をリストから一度外す.
+		 * @param event
+		 */
+		private function _onCreateMessageReceived(event:OSCSocketEvent):void{
+			var ip:String = event.srcAddress;
+			var i:int, len:int = _clients.length;
+			for( i = 0; i < len; i++ ){
+				if( _clients[i].ip == ip ){
+					// --- Delete from _clients if ip exists. ---
+					_clients[i].timer.removeEventListener( TimerEvent.TIMER_COMPLETE, _onClientTimerComplete );
+					_clients.splice(i,1);
+					// --- 
+					_decideHostIP();
+					// ---
+					dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.REMOVED ) );
+					break;
+				}
+			}
+		}
 		
 		/**
 		 * 管理されている IP の期限が切れた際の処理.
@@ -431,6 +451,7 @@ package org.sgmnt.lib.osc{
 			_activateTimer.reset();
 			_activateTimer.addEventListener(TimerEvent.TIMER, _onActivateTimer );
 			_activateTimer.addEventListener(TimerEvent.TIMER_COMPLETE, _onActivateTimerComplete );
+			_activateTimer.removeEventListener( TimerEvent.TIMER_COMPLETE, _onStableTimerComplete );
 			_activateTimer.start();
 		}
 		
@@ -459,21 +480,14 @@ package org.sgmnt.lib.osc{
 			
 			if( hasRunningProcesses == false ){
 				
-				// --- removeEventListeners. ---
-				_activateTimer.removeEventListener( TimerEvent.TIMER_COMPLETE, _onActivateTimerComplete );
-				
-				// --- Activate Complete. ---
-				_activated = true;
-				_newProcessRunnable = true;
-				
 				// --- Decide Host IP. ---
 				_decideHostIP( true );
 				
-				trace( "[" + name + "] Checking IP List... COMPLETE");
-				trace( "--------------------\n" + toString() + "\n--------------------" );
-				
-				// --- Dispatch Activate Event. ---
-				dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.STABLED ) );
+				if( _mngr.isHost( _name ) ){
+					var msg:OSCMessage = new OSCMessage();
+					msg.address = "/group/" + _name + "/stable";
+					_mngr.broadcast( msg );
+				}
 				
 			}else{
 				// --- プロセスの実行中であった場合それらが終了するまで待つ. ---
@@ -482,6 +496,48 @@ package org.sgmnt.lib.osc{
 				_activateTimer.start();
 			}
 			
+		}
+		
+		/**
+		 * 
+		 * @param event
+		 */		
+		private function _onStableMessageReceived(event:OSCSocketEvent):void{
+			
+			// --- removeEventListeners. ---
+			_activateTimer.stop();
+			_activateTimer.removeEventListener( TimerEvent.TIMER,_onActivateTimer );
+			_activateTimer.removeEventListener( TimerEvent.TIMER_COMPLETE, _onActivateTimerComplete );
+			
+			// --- Activate Complete. ---
+			_activated = true;
+			_newProcessRunnable = true;
+			
+			// --- Decide Host IP. ---
+			_decideHostIP( true );
+			
+			trace( "[" + name + "] Checking IP List... COMPLETE");
+			trace( "--------------------\n" + toString() + "\n--------------------" );
+			
+			if( _mngr.isHost( _name ) ){
+				// --- Host だった場合 STABLE 確認のための同期処理を 3 秒後に実行する.
+				_activateTimer.delay = 3000;
+				_activateTimer.repeatCount = 1;
+				_activateTimer.addEventListener( TimerEvent.TIMER_COMPLETE, _onStableTimerComplete );
+				_activateTimer.reset();
+				_activateTimer.start();
+			}
+			
+		}
+		
+		/**
+		 * STABLE 確認の同期処理を開始します.
+		 * @param event
+		 */
+		private function _onStableTimerComplete(event:TimerEvent):void{
+			_activateTimer.stop();
+			_activateTimer.removeEventListener( TimerEvent.TIMER_COMPLETE, _onStableTimerComplete );
+			dispatchEvent( new OSCSyncGroupEvent( OSCSyncGroupEvent.STABLED ) );
 		}
 		
 		// ====================================================================
