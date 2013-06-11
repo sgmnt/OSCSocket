@@ -49,7 +49,7 @@ package org.sgmnt.lib.osc{
 		 */
 		public function OSCSyncGroupClient( ip:String, createdTime:Number ):void{
 			_ip          = ip;
-			_timer       = new Timer( 100000, 1 );
+			_timer       = new Timer( 10000, 1 );
 			_stable      = false;
 			_createdTime = createdTime;
 		}

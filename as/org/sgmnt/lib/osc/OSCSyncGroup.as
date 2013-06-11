@@ -271,7 +271,7 @@ package org.sgmnt.lib.osc{
 			//trace("_onUpdateTimer");
 			_broadcastJoinMessage();
 			if( _updateTimer.delay == 3000 ){
-				_updateTimer.delay = 100000 * 0.4649;
+				_updateTimer.delay = 10000 * 0.4649;
 				_updateTimer.reset();
 				_updateTimer.start();
 			}
